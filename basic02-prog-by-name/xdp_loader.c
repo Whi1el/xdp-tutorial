@@ -21,7 +21,7 @@ static const char *__doc__ = "XDP loader\n"
 static const char *default_filename = "xdp_prog_kern.o";
 static const char *default_progsec = "xdp_pass";
 
-static const struct option_wrapper long_options[] = {
+static const struct option_wrapper long_options[] = {										// 该数据结构用于解析命令行参数
 	{{"help",        no_argument,		NULL, 'h' },
 	 "Show help", false},
 
@@ -59,26 +59,26 @@ static const struct option_wrapper long_options[] = {
 };
 
 /* Lesson#1: More advanced load_bpf_object_file and bpf_object */
-struct bpf_object *__load_bpf_object_file(const char *filename, int ifindex)
-{
-	/* In next assignment this will be moved into ../common/ */
-	int first_prog_fd = -1;
-	struct bpf_object *obj;
+struct bpf_object *__load_bpf_object_file(const char *filename, int ifindex)				// *filename 文件指针 ifindex 网络接口索引，加载BPF目标文件
+{																							// 接收文件名和网络接口索引，从BPF-ELF对象文件中提取BPF字节码，
+	/* In next assignment this will be moved into ../common/ */								// 并通过bpf系统调用将其加载到内核中
+	int first_prog_fd = -1;																	// 用于在后续的长须中获取BPF程序的文件描述符
+	struct bpf_object *obj;																	// 指向bpf_object类型的指针
 	int err;
 
 	/* Lesson#3: This struct allow us to set ifindex, this features is used
 	 * for hardware offloading XDP programs.
 	 */
 	struct bpf_prog_load_attr prog_load_attr = {
-		.prog_type	= BPF_PROG_TYPE_XDP,
-		.ifindex	= ifindex,
+		.prog_type	= BPF_PROG_TYPE_XDP,													// 声明文件类型
+		.ifindex	= ifindex,																// 接口索引
 	};
-	prog_load_attr.file = filename;
+	prog_load_attr.file = filename;															// filename 是一个指向字符数组的指针
 
 	/* Use libbpf for extracting BPF byte-code from BPF-ELF object, and
 	 * loading this into the kernel via bpf-syscall
 	 */
-	err = bpf_prog_load_xattr(&prog_load_attr, &obj, &first_prog_fd);
+	err = bpf_prog_load_xattr(&prog_load_attr, &obj, &first_prog_fd);						// & 操作符用于获取变量的内存地址，因为函数的原型需要接收指针作为参数
 	if (err) {
 		fprintf(stderr, "ERR: loading BPF-OBJ file(%s) (%d): %s\n",
 			filename, err, strerror(-err));
@@ -93,21 +93,21 @@ struct bpf_object *__load_bpf_object_file(const char *filename, int ifindex)
  * - Notice how BPF-ELF obj can have several programs
  * - Find by sec name via: bpf_object__find_program_by_title()
  */
-struct bpf_object *__load_bpf_and_xdp_attach(struct config *cfg)
-{
-	/* In next assignment this will be moved into ../common/ */
-	struct bpf_program *bpf_prog;
-	struct bpf_object *bpf_obj;
-	int offload_ifindex = 0;
+struct bpf_object *__load_bpf_and_xdp_attach(struct config *cfg)							// 函数接受一个指向config结构的指针作为参数，加载BPF和XDP属性
+{																							// 加载BPF-ELF对象文件，
+	/* In next assignment this will be moved into ../common/ */								// 并将其中一个BPF程序附加到XDP（Express Data Path）网络设备的链接层挂钩。
+	struct bpf_program *bpf_prog;															// 
+	struct bpf_object *bpf_obj;																// 
+	int offload_ifindex = 0;																// 用于存储在哪个网络接口执行硬件卸载
 	int prog_fd = -1;
 	int err;
 
 	/* If flags indicate hardware offload, supply ifindex */
-	if (cfg->xdp_flags & XDP_FLAGS_HW_MODE)
-		offload_ifindex = cfg->ifindex;
+	if (cfg->xdp_flags & XDP_FLAGS_HW_MODE)													// 检查配置结构中的标志位，XDP_FLAGS_HW_MODE是否被设置，也就是说硬件卸载模式是否启用
+		offload_ifindex = cfg->ifindex;														// 程序将在硬件卸载模式下运行
 
 	/* Load the BPF-ELF object file and get back libbpf bpf_object */
-	bpf_obj = __load_bpf_object_file(cfg->filename, offload_ifindex);
+	bpf_obj = __load_bpf_object_file(cfg->filename, offload_ifindex);						// 若offload_ifindex==0，则XDP程序将在主机的CPU上运行，即在用户空间加载BPF-ELF对象文件
 	if (!bpf_obj) {
 		fprintf(stderr, "ERR: loading file: %s\n", cfg->filename);
 		exit(EXIT_FAIL_BPF);
@@ -119,13 +119,13 @@ struct bpf_object *__load_bpf_and_xdp_attach(struct config *cfg)
 	 */
 
 	/* Find a matching BPF prog section name */
-	bpf_prog = bpf_object__find_program_by_title(bpf_obj, cfg->progsec);
+	bpf_prog = bpf_object__find_program_by_title(bpf_obj, cfg->progsec);					// 通过该代码我们可以在BPF对象中选择一个特定的BPF程序来执行，返回指向该程序节的bpf_program结构体指针
 	if (!bpf_prog) {
 		fprintf(stderr, "ERR: finding progsec: %s\n", cfg->progsec);
 		exit(EXIT_FAIL_BPF);
 	}
 
-	prog_fd = bpf_program__fd(bpf_prog);
+	prog_fd = bpf_program__fd(bpf_prog);													// 获取BPF程序对应的文件描述符
 	if (prog_fd <= 0) {
 		fprintf(stderr, "ERR: bpf_program__fd failed\n");
 		exit(EXIT_FAIL_BPF);
@@ -135,11 +135,14 @@ struct bpf_object *__load_bpf_and_xdp_attach(struct config *cfg)
 	 * is our select file-descriptor handle. Next step is attaching this FD
 	 * to a kernel hook point, in this case XDP net_device link-level hook.
 	 */
-	err = xdp_link_attach(cfg->ifindex, cfg->xdp_flags, prog_fd);
+	err = xdp_link_attach(cfg->ifindex, cfg->xdp_flags, prog_fd);							// 使用了xdp_link_attach函数来将BPF程序附加到指定的网络接口的XDP hook上
 	if (err)
 		exit(err);
 
-	return bpf_obj;
+	return bpf_obj;																			
+	/* 返回BPF对象结构体指针的主要原因是在程序的其他部分可能需要访问BPF程序对象的属性
+	 * 和方法，例如BPF程序的映射表、调试信息等。
+	*/ 
 }
 
 static void list_avail_progs(struct bpf_object *obj)
