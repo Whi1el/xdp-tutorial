@@ -15,8 +15,8 @@
  */
 
 SEC("xdp_pass")
-int  xdp_pass_func(struct xdp_md *ctx)                                                  // xdp_md: XDP Metadata
-{
+int  xdp_pass_func(struct xdp_md *ctx)                                                  // xdp_md: XDP Metadata，传递数据包的上下文信息，其中包含了元数据信息
+{                                                                                       // 数据包指针、数据包长度等
 	return XDP_PASS;
 }
 

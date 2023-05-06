@@ -163,15 +163,15 @@ int main(int argc, char **argv)
 	struct bpf_object *bpf_obj;
 
 	struct config cfg = {
-		.xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST | XDP_FLAGS_DRV_MODE,
-		.ifindex   = -1,
-		.do_unload = false,
+		.xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST | XDP_FLAGS_DRV_MODE,						// XDP_FLAGS_UPDATE_IF_NOEXIST:若不存在XDP程序，则更新XDP挂钩
+		.ifindex   = -1,																	// XDP_FLAGS_DRV_MODE:以驱动模式加载XDP程序
+		.do_unload = false,																	// ifindex表示网络接口尚未设置，do_unload表示默认情况下目标不是卸载程序
 	};
 	/* Set default BPF-ELF object file and BPF program name */
-	strncpy(cfg.filename, default_filename, sizeof(cfg.filename));
-	strncpy(cfg.progsec,  default_progsec,  sizeof(cfg.progsec));
+	strncpy(cfg.filename, default_filename, sizeof(cfg.filename));							// 拷贝默认的文件名
+	strncpy(cfg.progsec,  default_progsec,  sizeof(cfg.progsec));							// 拷贝默认的段名
 	/* Cmdline options can change these */
-	parse_cmdline_args(argc, argv, long_options, &cfg, __doc__);
+	parse_cmdline_args(argc, argv, long_options, &cfg, __doc__);							// 参数数量、字符指针数组、定义了支持的长选项、结构体示例指针、文档信息
 
 	/* Required option */
 	if (cfg.ifindex == -1) {

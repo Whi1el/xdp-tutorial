@@ -165,8 +165,8 @@ void parse_cmdline_args(int argc, char **argv,
 			strncpy(dest, optarg, sizeof(cfg->filename));
 			break;
 		case 2: /* --progsec */
-			dest  = (char *)&cfg->progsec;
-			strncpy(dest, optarg, sizeof(cfg->progsec));
+			dest  = (char *)&cfg->progsec;													// dest 变量被设置为 cfg->progsec 的地址
+			strncpy(dest, optarg, sizeof(cfg->progsec));									// 复制optarg中的参数到dest，sizeof确保不会发生溢出
 			break;
 		case 'L': /* --src-mac */
 			dest  = (char *)&cfg->src_mac;
