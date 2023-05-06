@@ -15,7 +15,7 @@
  */
 
 SEC("xdp_pass")
-int  xdp_pass_func(struct xdp_md *ctx)
+int  xdp_pass_func(struct xdp_md *ctx)                                                  // xdp_md: XDP Metadata
 {
 	return XDP_PASS;
 }
