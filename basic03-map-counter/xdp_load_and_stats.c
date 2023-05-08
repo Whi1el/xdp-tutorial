@@ -97,7 +97,7 @@ struct record {																				// 在用户空间程序中存储和处理有
 };
 
 struct stats_record {																		// 用于定期收集XDP程序的统计数据
-	struct record stats[1]; /* Assignment#2: Hint */
+	struct record stats[XDP_ACTION_MAX]; /* Assignment#2: Hint */
 };
 
 static double calc_period(struct record *r, struct record *p)								// 计算两个 record 的时间差
@@ -122,15 +122,17 @@ static void stats_print(struct stats_record *stats_rec,
 	double pps; /* packets per sec */
 	__u64 bytes;
 	double Mbits;
+	__u32 key;
 
 	/* Assignment#2: Print other XDP actions stats  */
+	for (key = 0; key<XDP_ACTION_MAX; key++)
 	{
 		char *fmt = "%-12s %'11lld pkts (%'10.0f pps)"
 			" %'11lld Kbytes (%'6.0f Mbits/s)"
 			" period:%f\n";
-		const char *action = action2str(XDP_PASS);
-		rec  = &stats_rec->stats[0];
-		prev = &stats_prev->stats[0];
+		const char *action = action2str(key);
+		rec  = &stats_rec->stats[key];
+		prev = &stats_prev->stats[key];
 
 		period = calc_period(rec, prev);
 		if (period == 0)
@@ -195,9 +197,10 @@ static void stats_collect(int map_fd, __u32 map_type,
 			  struct stats_record *stats_rec)												// 从给定 map 中收集统计信息，并存储在stats_record结构中
 {
 	/* Assignment#2: Collect other XDP actions stats  */
-	__u32 key = XDP_PASS;																	// 表示收集XDP_PASS相关的统计信息
-
-	map_collect(map_fd, map_type, key, &stats_rec->stats[0]);
+	__u32 key;																	// 表示收集XDP_PASS相关的统计信息
+	for (key = 0; key < XDP_ACTION_MAX; key++) {
+		map_collect(map_fd, map_type, key, &stats_rec->stats[key]);
+	}
 }
 
 static void stats_poll(int map_fd, __u32 map_type, int interval)
