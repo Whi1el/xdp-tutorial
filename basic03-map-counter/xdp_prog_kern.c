@@ -8,11 +8,11 @@
  * - Here an array with XDP_ACTION_MAX (max_)entries are created.
  * - The idea is to keep stats per (enum) xdp_action
  */
-struct bpf_map_def SEC("maps") xdp_stats_map = {
-	.type        = BPF_MAP_TYPE_ARRAY,
-	.key_size    = sizeof(__u32),
-	.value_size  = sizeof(struct datarec),
-	.max_entries = XDP_ACTION_MAX,
+struct bpf_map_def SEC("maps") xdp_stats_map = {											// 定义了一个Map
+	.type        = BPF_MAP_TYPE_ARRAY,														// Map的类型为简单的数组映射
+	.key_size    = sizeof(__u32),															// 键的大小
+	.value_size  = sizeof(struct datarec),													// 值的大小
+	.max_entries = XDP_ACTION_MAX,															// 每个条目存储统计信息，BPF_MAP_TYPE_ARRAY在创建时会生成max_entries个条目
 };
 
 /* LLVM maps __sync_fetch_and_add() as a built-in function to the BPF atomic add
@@ -31,7 +31,7 @@ int  xdp_stats1_func(struct xdp_md *ctx)
 	__u32 key = XDP_PASS; /* XDP_PASS = 2 */
 
 	/* Lookup in kernel BPF-side return pointer to actual data record */
-	rec = bpf_map_lookup_elem(&xdp_stats_map, &key);
+	rec = bpf_map_lookup_elem(&xdp_stats_map, &key);										// 在xdp_stats_map中查找与key对应的元素
 	/* BPF kernel-side verifier will reject program if the NULL pointer
 	 * check isn't performed here. Even-though this is a static array where
 	 * we know key lookup XDP_PASS always will succeed.

@@ -60,58 +60,59 @@ static const struct option_wrapper long_options[] = {
 	{{0, 0, NULL,  0 }}
 };
 
-int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
+int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)							// 找到map文件的描述符
 {
-	struct bpf_map *map;
+	struct bpf_map *map;																	// 表示 bpf map 的数据结构
 	int map_fd = -1;
 
 	/* Lesson#3: bpf_object to bpf_map */
-	map = bpf_object__find_map_by_name(bpf_obj, mapname);
+	map = bpf_object__find_map_by_name(bpf_obj, mapname);									// 找到指定名称的map对象
         if (!map) {
 		fprintf(stderr, "ERR: cannot find map by name: %s\n", mapname);
 		goto out;
 	}
 
-	map_fd = bpf_map__fd(map);
+	map_fd = bpf_map__fd(map);																// 利用map对象找到文件描述符
  out:
 	return map_fd;
 }
 
-#define NANOSEC_PER_SEC 1000000000 /* 10^9 */
-static __u64 gettime(void)
+#define NANOSEC_PER_SEC 1000000000 /* 10^9 */												// 每秒的纳秒数量，用于转换纳秒为秒
+static __u64 gettime(void)																	// 获取当前的时间戳
 {
-	struct timespec t;
-	int res;
+	struct timespec t;																		// timespec 结构变量 t
+	int res;																				// result 表示结果
 
-	res = clock_gettime(CLOCK_MONOTONIC, &t);
+	res = clock_gettime(CLOCK_MONOTONIC, &t);												// CLOCK_MONOTONIC 这个时间点从固定点开始递增，不受系统时间改变的影响
 	if (res < 0) {
 		fprintf(stderr, "Error with gettimeofday! (%i)\n", res);
 		exit(EXIT_FAIL);
 	}
-	return (__u64) t.tv_sec * NANOSEC_PER_SEC + t.tv_nsec;
+	return (__u64) t.tv_sec * NANOSEC_PER_SEC + t.tv_nsec;									// 返回总的纳秒数
 }
 
-struct record {
+struct record {																				// 在用户空间程序中存储和处理有关XDP程序统计信息的数据结构
 	__u64 timestamp;
 	struct datarec total; /* defined in common_kern_user.h */
 };
 
-struct stats_record {
+struct stats_record {																		// 用于定期收集XDP程序的统计数据
 	struct record stats[1]; /* Assignment#2: Hint */
 };
 
-static double calc_period(struct record *r, struct record *p)
+static double calc_period(struct record *r, struct record *p)								// 计算两个 record 的时间差
 {
-	double period_ = 0;
-	__u64 period = 0;
+	double period_ = 0;																		// 浮点形式的秒
+	__u64 period = 0;																		// 整数形式表示纳秒
 
 	period = r->timestamp - p->timestamp;
 	if (period > 0)
-		period_ = ((double) period / NANOSEC_PER_SEC);
+		period_ = ((double) period / NANOSEC_PER_SEC);										// 纳秒转为浮点形式的秒
 
 	return period_;
 }
 
+/*用于打印统计信息*/
 static void stats_print(struct stats_record *stats_rec,
 			struct stats_record *stats_prev)
 {
@@ -141,16 +142,16 @@ static void stats_print(struct stats_record *stats_rec,
 }
 
 /* BPF_MAP_TYPE_ARRAY */
-void map_get_value_array(int fd, __u32 key, struct datarec *value)
+void map_get_value_array(int fd, __u32 key, struct datarec *value)							// 从Map中获得指定键的值
 {
-	if ((bpf_map_lookup_elem(fd, &key, value)) != 0) {
+	if ((bpf_map_lookup_elem(fd, &key, value)) != 0) {										// 因为函数原型要求的输入是一个指向键的指针所以需要&取地址
 		fprintf(stderr,
 			"ERR: bpf_map_lookup_elem failed key:0x%X\n", key);
 	}
 }
 
 /* BPF_MAP_TYPE_PERCPU_ARRAY */
-void map_get_value_percpu_array(int fd, __u32 key, struct datarec *value)
+void map_get_value_percpu_array(int fd, __u32 key, struct datarec *value)					// 从percpu数组中获取值
 {
 	/* For percpu maps, userspace gets a value per possible CPU */
 	// unsigned int nr_cpus = bpf_num_possible_cpus();
@@ -159,19 +160,19 @@ void map_get_value_percpu_array(int fd, __u32 key, struct datarec *value)
 	fprintf(stderr, "ERR: %s() not impl. see assignment#3", __func__);
 }
 
-static bool map_collect(int fd, __u32 map_type, __u32 key, struct record *rec)
+static bool map_collect(int fd, __u32 map_type, __u32 key, struct record *rec)				// 从map中获取数据并存储在rec中，map_type存储map的类型
 {
 	struct datarec value;
 
 	/* Get time as close as possible to reading map contents */
-	rec->timestamp = gettime();
+	rec->timestamp = gettime();																// 记录当前的时间戳
 
 	switch (map_type) {
 	case BPF_MAP_TYPE_ARRAY:
 		map_get_value_array(fd, key, &value);
 		break;
 	case BPF_MAP_TYPE_PERCPU_ARRAY:
-		/* fall-through */
+		/* fall-through */																	// /* fall-through */ 代表当前 case 不写 break 是故意的
 	default:
 		fprintf(stderr, "ERR: Unknown map_type(%u) cannot handle\n",
 			map_type);
@@ -180,41 +181,42 @@ static bool map_collect(int fd, __u32 map_type, __u32 key, struct record *rec)
 	}
 
 	/* Assignment#1: Add byte counters */
-	rec->total.rx_packets = value.rx_packets;
+	rec->total.rx_packets = value.rx_packets;												// rx_packets用于存储接收到的数据包数量
 	return true;
 }
 
+/*收集统计信息并存储*/
 static void stats_collect(int map_fd, __u32 map_type,
-			  struct stats_record *stats_rec)
+			  struct stats_record *stats_rec)												// 从给定 map 中收集统计信息，并存储在stats_record结构中
 {
 	/* Assignment#2: Collect other XDP actions stats  */
-	__u32 key = XDP_PASS;
+	__u32 key = XDP_PASS;																	// 表示收集XDP_PASS相关的统计信息
 
 	map_collect(map_fd, map_type, key, &stats_rec->stats[0]);
 }
 
 static void stats_poll(int map_fd, __u32 map_type, int interval)
 {
-	struct stats_record prev, record = { 0 };
+	struct stats_record prev, record = { 0 };												// 用于存储上一次和当前的统计数据
 
 	/* Trick to pretty printf with thousands separators use %' */
-	setlocale(LC_NUMERIC, "en_US");
+	setlocale(LC_NUMERIC, "en_US");															// 设置区域以便使用千位分隔符？
 
 	/* Print stats "header" */
-	if (verbose) {
+	if (verbose) {																			// verbose 通常用于存储程序输出的详细程度
 		printf("\n");
-		printf("%-12s\n", "XDP-action");
+		printf("%-12s\n", "XDP-action");													// "%-12s 表示如果字符串不足12个字符，将在其后补齐，最后输出一个换行符
 	}
 
 	/* Get initial reading quickly */
 	stats_collect(map_fd, map_type, &record);
-	usleep(1000000/4);
+	usleep(1000000/4);																		// 0.25s 实现一个较短的延迟
 
 	while (1) {
 		prev = record; /* struct copy */
 		stats_collect(map_fd, map_type, &record);
 		stats_print(&record, &prev);
-		sleep(interval);
+		sleep(interval);																	// 2s 由程序指定
 	}
 }
 
@@ -232,7 +234,7 @@ static int __check_map_fd_info(int map_fd, struct bpf_map_info *info,
 		return EXIT_FAIL;
 
         /* BPF-info via bpf-syscall */
-	err = bpf_obj_get_info_by_fd(map_fd, info, &info_len);
+	err = bpf_obj_get_info_by_fd(map_fd, info, &info_len);									// info 通过FD得到 map 的信息
 	if (err) {
 		fprintf(stderr, "ERR: %s() can't get info - %s\n",
 			__func__,  strerror(errno));
@@ -308,7 +310,7 @@ int main(int argc, char **argv)
 	}
 
 	/* Lesson#3: Locate map file descriptor */
-	stats_map_fd = find_map_fd(bpf_obj, "xdp_stats_map");
+	stats_map_fd = find_map_fd(bpf_obj, "xdp_stats_map");									// 这个map是在BPF程序中创建的，没返回-1说明找到了这个map的fd
 	if (stats_map_fd < 0) {
 		xdp_link_detach(cfg.ifindex, cfg.xdp_flags, 0);
 		return EXIT_FAIL_BPF;
