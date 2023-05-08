@@ -23,7 +23,7 @@ struct bpf_map_def SEC("maps") xdp_stats_map = {											// 定义了一个Map
 #endif
 
 SEC("xdp_stats1")
-int  xdp_stats1_func(struct xdp_md *ctx)
+int  xdp_stats1_func(struct xdp_md *ctx)													// ctx是上下文变量结构体
 {
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data     = (void *)(long)ctx->data;

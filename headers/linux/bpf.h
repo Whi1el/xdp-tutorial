@@ -2854,7 +2854,7 @@ enum xdp_action {
  * new fields must be added to the end of this structure
  */
 struct xdp_md {
-	__u32 data;
+	__u32 data;																				// u32 不是真正的的数据结构，在程序加载到内核时会重新分配
 	__u32 data_end;
 	__u32 data_meta;
 	/* Below access go through struct xdp_rxq_info */

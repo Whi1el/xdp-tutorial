@@ -92,7 +92,7 @@ static __u64 gettime(void)																	// 获取当前的时间戳
 }
 
 struct record {																				// 在用户空间程序中存储和处理有关XDP程序统计信息的数据结构
-	__u64 timestamp;
+	__u64 timestamp;																		// 相比datarec多了时间戳
 	struct datarec total; /* defined in common_kern_user.h */
 };
 
