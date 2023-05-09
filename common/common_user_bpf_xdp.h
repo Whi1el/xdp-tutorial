@@ -13,7 +13,7 @@ const char *action2str(__u32 action);
 int check_map_fd_info(const struct bpf_map_info *info,
                       const struct bpf_map_info *exp);
 
-int open_bpf_map_file(const char *pin_dir,
+int open_bpf_map_file(const char *pin_dir,													// bpf_obj_get_info_by_fd
 		      const char *mapname,
 		      struct bpf_map_info *info);
 
