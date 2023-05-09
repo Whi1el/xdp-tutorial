@@ -43,7 +43,7 @@ __u32 xdp_stats_record_action(struct xdp_md *ctx, __u32 action)
 	 * CPU and XDP hooks runs under Softirq, which makes it safe to update
 	 * without atomic operations.
 	 */
-	rec->rx_packets++;
+	rec->rx_packets++;																		// 使用BPF_MAP_TYPE_PERCPU_ARRAY时不需要原子操作
 	rec->rx_bytes += bytes;
 
 	return action;
