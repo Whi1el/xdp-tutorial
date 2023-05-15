@@ -30,6 +30,9 @@ static __always_inline int parse_ethhdr(struct hdr_cursor *nh,
 					void *data_end,
 					struct ethhdr **ethhdr)
 {
+	/*
+	* |<---目的地址--->|<---源地址--->|<-类型->|<--------...数据...--------->|<--CRC-->|
+	*/
 	struct ethhdr *eth = nh->pos;
 	int hdrsize = sizeof(*eth);
 
