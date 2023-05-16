@@ -49,18 +49,30 @@ static __always_inline int parse_ethhdr(struct hdr_cursor *nh,
 }
 
 /* Assignment 2: Implement and use this */
-/*static __always_inline int parse_ip6hdr(struct hdr_cursor *nh,
+static __always_inline int parse_ip6hdr(struct hdr_cursor *nh,
 					void *data_end,
 					struct ipv6hdr **ip6hdr)
 {
-}*/
+    struct ipv6hdr *ipv6 = nh->pos;
+    int hdrsize = sizeof(ip6hdr);
+    if (nh->pos+hdrsize > data_end)
+    {
+        return -1;
+    }
+    nh->pos += hdrsize;
+    *ip6hdr = ipv6;
+
+    return 0;
+}
 
 /* Assignment 3: Implement and use this */
-/*static __always_inline int parse_icmp6hdr(struct hdr_cursor *nh,
+static __always_inline int parse_icmp6hdr(struct hdr_cursor *nh,
 					  void *data_end,
 					  struct icmp6hdr **icmp6hdr)
 {
-}*/
+	struct icmp6hdr *icmp6 = nh->pos;
+	
+}
 
 SEC("xdp_packet_parser")
 int  xdp_parser_func(struct xdp_md *ctx)
@@ -68,6 +80,7 @@ int  xdp_parser_func(struct xdp_md *ctx)
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth;
+	struct ipv6hdr *ipv6;
 
 	/* Default action XDP_PASS, imply everything we couldn't parse, or that
 	 * we don't want to deal with, we just pass up the stack and let the
@@ -91,6 +104,8 @@ int  xdp_parser_func(struct xdp_md *ctx)
 		goto out;
 
 	/* Assignment additions go below here */
+	parse_ip6hdr(&nh, data_end, &ipv6);
+	
 
 	action = XDP_DROP;
 out:
