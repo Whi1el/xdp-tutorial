@@ -53,16 +53,15 @@ static __always_inline int parse_ip6hdr(struct hdr_cursor *nh,
 					void *data_end,
 					struct ipv6hdr **ip6hdr)
 {
-    struct ipv6hdr *ipv6 = nh->pos;
-    int hdrsize = sizeof(ip6hdr);
-    if (nh->pos+hdrsize > data_end)
+    struct ipv6hdr *ip6h = nh->pos;
+    if (ip6h+1 > data_end)
     {
         return -1;
     }
-    nh->pos += hdrsize;
-    *ip6hdr = ipv6;
+    nh->pos = ip6h + 1;
+    *ip6hdr = ip6h;
 
-    return 0;
+    return ip6h->nexthdr;
 }
 
 /* Assignment 3: Implement and use this */
@@ -104,9 +103,10 @@ int  xdp_parser_func(struct xdp_md *ctx)
 		goto out;
 
 	/* Assignment additions go below here */
-	parse_ip6hdr(&nh, data_end, &ipv6);
+	nexthdr = parse_ip6hdr(&nh, data_end, &ipv6);
+	if (nexthdr != IPPROTO_ICMPV6)					// 8位值不涉及大端序和小端序的问题。
+		goto out;
 	
-
 	action = XDP_DROP;
 out:
 	return xdp_stats_record_action(ctx, action); /* read via xdp_stats */
