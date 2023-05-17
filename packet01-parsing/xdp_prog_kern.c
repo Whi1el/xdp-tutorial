@@ -97,8 +97,7 @@ int  xdp_parser_func(struct xdp_md *ctx)
 
         /* These keep track of the next header type and iterator pointer */
 	struct hdr_cursor nh;
-	int nh_type, nexthdr;
-
+	int nh_type, nexthdr, seqnumber;
 	/* Start next header cursor position at data start */
 	nh.pos = data;
 
