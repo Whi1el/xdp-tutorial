@@ -70,7 +70,14 @@ static __always_inline int parse_icmp6hdr(struct hdr_cursor *nh,
 					  struct icmp6hdr **icmp6hdr)
 {
 	struct icmp6hdr *icmp6 = nh->pos;
-	
+	if (icmp6+1 > data_end) 
+	{
+		return -1;
+	}
+	nh->pos = icmp6 + 1;
+	*icmp6hdr = icmp6;
+
+	return icmp6->icmp6_sequence;
 }
 
 SEC("xdp_packet_parser")
@@ -80,6 +87,7 @@ int  xdp_parser_func(struct xdp_md *ctx)
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth;
 	struct ipv6hdr *ipv6;
+	struct icmp6hdr *icmp6;
 
 	/* Default action XDP_PASS, imply everything we couldn't parse, or that
 	 * we don't want to deal with, we just pass up the stack and let the
@@ -105,6 +113,10 @@ int  xdp_parser_func(struct xdp_md *ctx)
 	/* Assignment additions go below here */
 	nexthdr = parse_ip6hdr(&nh, data_end, &ipv6);
 	if (nexthdr != IPPROTO_ICMPV6)					// 8位值不涉及大端序和小端序的问题。
+		goto out;
+
+	seqnumber = parse_icmp6hdr(&nh, data_end, &icmp6);
+	if (bpf_ntohs(seqnumber)%2 == 1)
 		goto out;
 	
 	action = XDP_DROP;
