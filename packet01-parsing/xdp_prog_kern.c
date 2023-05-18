@@ -17,6 +17,13 @@ struct hdr_cursor {
 	void *pos;
 };
 
+/*vlan 头结构体*/
+struct vlan_hdr
+{
+	__be16 h_vlan_TCI;
+	__be16 h_vlan_encapsulated_proto;
+};
+
 /* Packet parsing helpers.
  *
  * Each helper parses a packet header, including doing bounds checking, and
@@ -80,12 +87,34 @@ static __always_inline int parse_icmp6hdr(struct hdr_cursor *nh,
 	return icmp6->icmp6_sequence;
 }
 
+/*确定以太网头中包裹的协议是 VLAN*/
+static __always_inline int proto_is_vlan(__u16 h_proto)
+{
+        return !!(h_proto == bpf_htons(ETH_P_8021Q) ||
+                  h_proto == bpf_htons(ETH_P_8021AD));
+}
+
+/*解析VLAN包*/
+static __always_inline int parse_vlan(struct hdr_cursor *nh, void *data_end, struct vlan_hdr **vlanhdr)
+{
+	struct vlan_hdr *point_vlan = nh->pos;
+	if (point_vlan+1 > data_end)
+	{
+		return -1;
+	}
+	nh->pos = point_vlan+1;
+	*vlanhdr = point_vlan;
+
+	return point_vlan->h_vlan_encapsulated_proto;
+}
+
 SEC("xdp_packet_parser")
 int  xdp_parser_func(struct xdp_md *ctx)
 {
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth;
+	struct vlan_hdr *vlan;
 	struct ipv6hdr *ipv6;
 	struct icmp6hdr *icmp6;
 
@@ -106,17 +135,41 @@ int  xdp_parser_func(struct xdp_md *ctx)
 	 * header type in the packet correct?), and bounds checking.
 	 */
 	nh_type = parse_ethhdr(&nh, data_end, &eth);
-	if (nh_type != bpf_htons(ETH_P_IPV6))
-		goto out;
 
-	/* Assignment additions go below here */
-	nexthdr = parse_ip6hdr(&nh, data_end, &ipv6);
-	if (nexthdr != IPPROTO_ICMPV6)					// 8位值不涉及大端序和小端序的问题。
+	if ( nh_type != bpf_htons(ETH_P_IPV6) && !proto_is_vlan(nh_type) ) 
+	{
 		goto out;
+	}
 
-	seqnumber = parse_icmp6hdr(&nh, data_end, &icmp6);
-	if (bpf_ntohs(seqnumber)%2 == 1)
-		goto out;
+	if ( nh_type == bpf_htons(ETH_P_IPV6) ) 
+	{
+		/* Assignment additions go below here */
+		nexthdr = parse_ip6hdr(&nh, data_end, &ipv6);
+		if (nexthdr != IPPROTO_ICMPV6)					// 8位值不涉及大端序和小端序的问题。
+			goto out;
+
+		seqnumber = parse_icmp6hdr(&nh, data_end, &icmp6);
+		if (bpf_ntohs(seqnumber)%2 == 1)
+			goto out;
+	}
+
+	if (proto_is_vlan(nh_type))
+	{
+		/*处理 VLAN tag*/
+		nh_type = parse_vlan(&nh, data_end, &vlan);
+		/*判断是否是IPV6协议*/
+		if (nh_type != bpf_htons(ETH_P_IPV6))
+			goto out;
+		/*解析IPV6头，并判断是否是ICMPV6*/
+		nexthdr = parse_ip6hdr(&nh, data_end, &ipv6);
+		if (nexthdr != IPPROTO_ICMPV6)					// 8位值不涉及大端序和小端序的问题。
+			goto out;
+		/*解析ICMPV6头，判断序列号是否是偶数*/
+		seqnumber = parse_icmp6hdr(&nh, data_end, &icmp6);
+		if (bpf_ntohs(seqnumber)%2 == 1)
+			goto out;
+
+	}
 	
 	action = XDP_DROP;
 out:
