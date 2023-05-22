@@ -108,6 +108,36 @@ static __always_inline int parse_vlan(struct hdr_cursor *nh, void *data_end, str
 	return point_vlan->h_vlan_encapsulated_proto;
 }
 
+/*解析IPv4包*/
+static __always_inline int parse_ip(struct hdr_cursor *nh, void *data_end, struct iphdr **iphdr)
+{
+	struct iphdr *pointer_ip = nh->pos;
+	if (pointer_ip+1 > data_end)
+	{
+		return -1;
+	}
+	int hdrsize = pointer_ip->ihl * 4;
+	if (nh->pos + hdrsize > data_end)
+	{
+		return -1;
+	}
+	nh->pos += hdrsize;
+	return pointer_ip->protocol;
+}
+
+/*解析ICMP协议*/
+// static __always_inline int parse_icmphdr(struct hdr_cursor *nh, void *data_end, struct icmphdr **icmphdr)
+// {
+// 	struct icmphdr *icmp4 = nh->pos;
+
+// 	if (icmp4+1 > data_end) 
+// 	{
+// 		return -1;
+// 	}
+// 	*icmphdr = nh->pos;
+// 	return icmp4->type;
+// }
+
 SEC("xdp_packet_parser")
 int  xdp_parser_func(struct xdp_md *ctx)
 {
@@ -115,7 +145,9 @@ int  xdp_parser_func(struct xdp_md *ctx)
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth;
 	struct vlan_hdr *vlan;
+	struct iphdr *ipv4;
 	struct ipv6hdr *ipv6;
+	// struct icmphdr *icmp;
 	struct icmp6hdr *icmp6;
 
 	/* Default action XDP_PASS, imply everything we couldn't parse, or that
@@ -136,7 +168,8 @@ int  xdp_parser_func(struct xdp_md *ctx)
 	 */
 	nh_type = parse_ethhdr(&nh, data_end, &eth);
 
-	if ( nh_type != bpf_htons(ETH_P_IPV6) && !proto_is_vlan(nh_type) ) 
+	/*判断若不是IPV6协议、不是IPv4协议且不是vlan协议，则直接放行*/
+	if ( nh_type != bpf_htons(ETH_P_IPV6) && !proto_is_vlan(nh_type) && nh_type != bpf_htons(ETH_P_IP)) 
 	{
 		goto out;
 	}
@@ -151,6 +184,18 @@ int  xdp_parser_func(struct xdp_md *ctx)
 		seqnumber = parse_icmp6hdr(&nh, data_end, &icmp6);
 		if (bpf_ntohs(seqnumber)%2 == 1)
 			goto out;
+	}
+
+	if ( nh_type == bpf_htons(ETH_P_IP) ) 
+	{
+		/* Assignment additions go below here */
+		nexthdr = parse_ip(&nh, data_end, &ipv4);
+		if (nexthdr == IPPROTO_ICMP)					// 8位值不涉及大端序和小端序的问题。
+			goto out;
+
+		// icmp_type = parse_icmphdr(&nh, data_end, &icmp);
+		// if (icmp_type != ICMP_ECHO)
+		// 	goto out;
 	}
 
 	if (proto_is_vlan(nh_type))
@@ -170,7 +215,7 @@ int  xdp_parser_func(struct xdp_md *ctx)
 			goto out;
 
 	}
-	
+
 	action = XDP_DROP;
 out:
 	return xdp_stats_record_action(ctx, action); /* read via xdp_stats */
