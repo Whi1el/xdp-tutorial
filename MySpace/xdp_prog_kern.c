@@ -11,6 +11,24 @@
 #include "../common/xdp_stats_kern_user.h"
 #include "../common/xdp_stats_kern.h"
 
+static __always_inline void update_iph_checksum(struct iphdr *iph) 
+{
+    __u16 *next_iph_u16 = (__u16 *)iph;
+    __u32 csum = 0;
+    iph->check = 0;
+#pragma clang loop unroll(full)
+    for (__u32 i = 0; i < sizeof(*iph) >> 1; i++) {
+        csum += *next_iph_u16++;
+    }   
+ 
+    int i = 0;
+    while (csum >> 16 && i < 4)
+    {
+        csum = (csum & 0xffff) + (csum >> 16);
+        i++;
+    }
+    iph->check = (__u16) ~csum;
+}
 
 SEC("xdp_TTL_rewrite")
 int xdp_TTL_rewrite_func(struct xdp_md *ctx)
