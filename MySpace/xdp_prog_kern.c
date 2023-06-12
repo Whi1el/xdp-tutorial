@@ -12,8 +12,6 @@
 #include "../common/xdp_stats_kern.h"
 
 
-
-
 static __always_inline void update_iph_checksum(struct iphdr *iph) 
 {
     __u16 *next_iph_u16 = (__u16 *)iph;
@@ -40,6 +38,7 @@ static __always_inline __u16 csum_fold_helper(__u32 csum)
 	return ~((csum & 0xffff) + (csum >> 16));
 }
 
+
 static __always_inline void ipv4_l4_csum(void *data_start, __u32 data_size, __u64 *csum, struct iphdr *iph, void *data_end) {
 	__u32 tmp = 0;
 	*csum = bpf_csum_diff(0, 0, &iph->saddr, sizeof(__be32), *csum);
@@ -64,10 +63,8 @@ static __always_inline void ipv4_l4_csum(void *data_start, __u32 data_size, __u6
     if ((void *)(buf + 1) <= data_end) {
         *csum += *(__u8 *)buf;
     }
-      
-   
+
 	*csum = csum_fold_helper(*csum);
-   
 }
 
 
@@ -113,7 +110,6 @@ static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_proto
     }
 
     /*重新计算校验和*/
-
     
 }
 
@@ -162,10 +158,12 @@ out:
     return xdp_stats_record_action(ctx, action);
 }
 
+
 SEC("xdp")
 int  xdp_prog_simple(struct xdp_md *ctx)
 {
 	return XDP_PASS;
 }
+
 
 char _license[] SEC("license") = "GPL";
