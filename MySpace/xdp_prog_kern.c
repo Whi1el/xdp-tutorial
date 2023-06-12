@@ -68,8 +68,7 @@ static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_proto
         return;
     }
      
-    int data_len = parse_tcphdr(&nh, data_end, &tcp_hdr);
-    if (data_len != -1)
+    if (parse_tcphdr(&nh, data_end, &tcp_hdr) != -1)
     {
         __u64 csum = 0;
         tcp_hdr->check = 0;
