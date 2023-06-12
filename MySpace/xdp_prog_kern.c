@@ -34,6 +34,42 @@ static __always_inline void update_iph_checksum(struct iphdr *iph)
     iph->check = (__u16) ~csum;
 }
 
+#define MAX_TCP_LENGTH 1480
+static __always_inline __u16 csum_fold_helper(__u32 csum)
+{
+	return ~((csum & 0xffff) + (csum >> 16));
+}
+
+static __always_inline void ipv4_l4_csum(void *data_start, __u32 data_size, __u64 *csum, struct iphdr *iph, void *data_end) {
+	__u32 tmp = 0;
+	*csum = bpf_csum_diff(0, 0, &iph->saddr, sizeof(__be32), *csum);
+	*csum = bpf_csum_diff(0, 0, &iph->daddr, sizeof(__be32), *csum);
+
+	tmp = bpf_htonl((__u32)(iph->protocol));
+	*csum = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
+	tmp = bpf_htonl((__u32)(data_size));
+	*csum = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);	
+
+   
+	// Compute checksum from scratch by a bounded loop
+	__u16 *buf = data_start;
+	for (int i = 0; i < MAX_TCP_LENGTH; i += 2) {
+		if ((void *)(buf + 1) > data_end) {
+			break;
+		}
+		*csum += *buf;
+		buf++;
+	}
+
+    if ((void *)(buf + 1) <= data_end) {
+        *csum += *(__u8 *)buf;
+    }
+      
+   
+	*csum = csum_fold_helper(*csum);
+   
+}
+
 
 static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_protocol_num, int* flag, void* data_statr, void* data_end)
 {
