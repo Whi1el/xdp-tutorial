@@ -59,10 +59,7 @@ static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_proto
 
     if (parse_iphdr(&nh, data_end, &ip_hdr) != -1)
     {
-        bpf_printk("ip_hdr %d.\n", ip_hdr->protocol);
-        bpf_printk("TTL %d.\n", ip_hdr->ttl);
-        bpf_printk("ip_hdr->check1 %d.\n", ip_hdr->check);
-        ip_hdr->ttl = 10;
+        // ip_hdr->ttl = 10;
         update_iph_checksum(ip_hdr);
     } else {
         return;
