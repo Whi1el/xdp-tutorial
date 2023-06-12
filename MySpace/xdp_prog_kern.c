@@ -37,11 +37,6 @@ static __always_inline void update_iph_checksum(struct iphdr *iph)
 
 static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_protocol_num, int* flag, void* data_statr, void* data_end)
 {
-    // bpf_printk("flag %d.\n", *flag);
-    // bpf_printk("eth_type_num %d.\n", eth_type_num);
-    // bpf_printk("bpf_htons(ETH_P_IP) %d.\n",bpf_htons(ETH_P_IP));
-    // bpf_printk("ip_protocol_num %d.\n", ip_protocol_num);
-    // bpf_printk("IPPROTO_TCP %d.\n", IPPROTO_TCP);
     if(*flag || eth_type_num != bpf_htons(ETH_P_IP) || ip_protocol_num != IPPROTO_TCP) 
     {
         // bpf_printk("ERROE.\n");
@@ -56,7 +51,7 @@ static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_proto
     struct tcphdr* tcp_hdr = NULL;
     if (parse_ethhdr(&nh, data_end, &eth_hdr) != -1)
     {
-        bpf_printk("eth_hdr %d.\n", eth_hdr->h_proto);
+        // bpf_printk("eth_hdr %d.\n", eth_hdr->h_proto);
         
     } else {
         return;
@@ -69,10 +64,6 @@ static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_proto
         bpf_printk("ip_hdr->check1 %d.\n", ip_hdr->check);
         ip_hdr->ttl = 10;
         update_iph_checksum(ip_hdr);
-
-        bpf_printk("ip_hdr->check2 %d.\n", ip_hdr->check);
-
-
     } else {
         return;
     }
@@ -80,10 +71,11 @@ static __always_inline void confusion_ipv4_tcp(__u16 eth_type_num, __u8 ip_proto
     int data_len = parse_tcphdr(&nh, data_end, &tcp_hdr);
     if (data_len != -1)
     {
-        bpf_printk("data_len %d.\n", data_len);
-        bpf_printk("tcp_hdr->doff %d.\n", tcp_hdr->doff);
-        bpf_printk("tcp_hdr->window %d.\n", tcp_hdr->window);
-        bpf_printk("tcp_hdr->check %d.\n", tcp_hdr->check);
+        __u64 csum = 0;
+        tcp_hdr->check = 0;
+        int tcplen = bpf_ntohs(ip_hdr->tot_len) - ip_hdr->ihl * 4;
+        ipv4_l4_csum((void *)tcp_hdr, (__u32)tcplen, &csum, ip_hdr, data_end);
+        bpf_printk("tcp_hdr->check2 %d.\n", csum);
     } else {
         return;
     }
@@ -105,28 +97,35 @@ int xdp_TTL_rewrite_func(struct xdp_md *ctx)
     struct ipv6hdr* ipv6_hdr = NULL;
     
     /*解析网络层和传输层协议的版本*/
-    int eth_type = 0;
-    int ip_protocol_num = -1;
+    __u16 eth_type = 0;
+    __u8 ip_protocol_num = -1;
     eth_type = parse_ethhdr(&nh, data_end, &eth_hdr);
     if (eth_type == bpf_htons(ETH_P_IP))
     {
         //TODO: 基于IPv4判断传输层协议
         ip_protocol_num = parse_iphdr(&nh, data_end, &ip_hdr);
+        // bpf_printk("IPv4\n");
 
     }
     else if (eth_type == bpf_htons(ETH_P_IPV6))
     {
         //TODO: 基于IPv6判断传输层协议
         ip_protocol_num = parse_ip6hdr(&nh, data_end, &ipv6_hdr);
+        // bpf_printk("IPv6\n");
     }
     else
     {
         //TODO: 其他协议目前暂不处理
+        // bpf_printk("Other\n");
         goto out;
     }
-
-    bpf_printk("eth_type %d.ip_protocol_num %d\n", eth_type, ip_protocol_num);
     
+    int flag = 0;
+    confusion_ipv4_tcp(eth_type, ip_protocol_num, &flag, data, data_end);
+    // confusion_ipv4_udp(eth_type, ip_protocol_num, &flag, data, data_end);
+    // confusion_ipv6_tcp(eth_type, ip_protocol_num, &flag, data, data_end);
+    // confusion_ipv6_udp(eth_type, ip_protocol_num, &flag, data, data_end);
+
 out:
     return xdp_stats_record_action(ctx, action);
 }
